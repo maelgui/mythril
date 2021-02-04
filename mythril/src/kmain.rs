@@ -180,7 +180,7 @@ pub extern "C" fn ap_entry(ap_data: &ap::ApData) -> ! {
     vcpu::mp_entry_point()
 }
 
-static mut LOGGER: logger::DirectLogger = logger::DirectLogger::new();
+static LOGGER: logger::DirectLogger = logger::DirectLogger::new();
 
 #[no_mangle]
 pub unsafe extern "C" fn kmain_early(multiboot_info_addr: usize) -> ! {

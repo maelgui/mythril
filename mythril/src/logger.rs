@@ -131,24 +131,24 @@ impl fmt::Write for VgaWriter {
 }
 
 pub struct DirectLogger {
-    log_config: Option<LogConfig>
+    log_config: Mutex<Option<LogConfig>>
 }
 
 impl DirectLogger {
     pub const fn new() -> Self {
         DirectLogger {
-            log_config: None,
+            log_config: Mutex::new(None),
         }
     }
 
-    pub fn set_log_config(&mut self, new_config: LogConfig) {
-        self.log_config = Some(new_config);
+    pub fn set_log_config(&self, new_config: LogConfig) {
+        *self.log_config.lock() = Some(new_config);
     }
 }
 
 impl log::Log for DirectLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        if let Some(config) = self.log_config.as_ref() {
+        if let Some(config) = self.log_config.lock().as_ref() {
             let target = metadata.target();
             if let Some(&max_level) = config.mod_filters.get(target) {
                 metadata.level() <= max_level
