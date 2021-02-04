@@ -3,11 +3,11 @@
 use crate::percore;
 
 use alloc::string::String;
-use alloc::collections::BTreeMap;
 use core::fmt;
 use serde::de::{self, Visitor};
 use serde::export::Vec;
 use serde::{Deserialize, Deserializer};
+use hashbrown::HashMap;
 
 /// A description of a single virtual machine configuration
 #[derive(Deserialize, Debug)]
@@ -37,7 +37,7 @@ pub struct LogConfig {
 
     /// Max level for specified modules
     #[serde(flatten)]
-    pub mod_filters: BTreeMap<String, log::Level>
+    pub mod_filters: HashMap<String, log::Level>
 }
 
 /// The top level Mythril configuration
