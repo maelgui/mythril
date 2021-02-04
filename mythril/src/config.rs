@@ -1,8 +1,9 @@
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 
 use crate::percore;
 
 use alloc::string::String;
+use alloc::collections::BTreeMap;
 use core::fmt;
 use serde::de::{self, Visitor};
 use serde::export::Vec;
@@ -27,11 +28,26 @@ pub struct UserVmConfig {
     pub cpus: Vec<percore::CoreId>,
 }
 
+/// A description of the log configuration for each module
+#[derive(Deserialize, Debug)]
+pub struct LogConfig {
+    /// Default max level, used if the module is not found in the filters
+    #[serde(rename(deserialize = "*"))]
+    pub default_max_level: log::Level,
+
+    /// Max level for specified modules
+    #[serde(flatten)]
+    pub mod_filters: BTreeMap<String, log::Level>
+}
+
 /// The top level Mythril configuration
 #[derive(Deserialize, Debug)]
 pub struct UserConfig {
     /// Version number for this configuration
     pub version: u64,
+
+    /// Log max levels configuration
+    pub log: Option<LogConfig>,
 
     /// A list of virtual machine configurations
     pub vms: Vec<UserVmConfig>,

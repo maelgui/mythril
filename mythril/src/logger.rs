@@ -1,4 +1,5 @@
 use crate::time;
+use crate::config::LogConfig;
 
 use core::fmt;
 use core::fmt::Write;
@@ -129,19 +130,41 @@ impl fmt::Write for VgaWriter {
     }
 }
 
-pub struct DirectLogger;
+pub struct DirectLogger {
+    log_config: Option<LogConfig>
+}
+
 impl DirectLogger {
     pub const fn new() -> Self {
-        DirectLogger {}
+        DirectLogger {
+            log_config: None,
+        }
+    }
+
+    pub fn set_log_config(&mut self, new_config: LogConfig) {
+        self.log_config = Some(new_config);
     }
 }
 
 impl log::Log for DirectLogger {
-    fn enabled(&self, _metadata: &log::Metadata) -> bool {
-        true
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        if let Some(config) = self.log_config.as_ref() {
+            let target = metadata.target();
+            if let Some(&max_level) = config.mod_filters.get(target) {
+                metadata.level() <= max_level
+            } else {
+                metadata.level() <= config.default_max_level
+            }
+        } else {
+            true
+        }
     }
 
     fn log(&self, record: &log::Record) {
+        if !self.enabled(record.metadata()) {
+            return
+        }
+
         let (stamp_sec, stamp_subsec) = if time::is_global_time_ready() {
             let diff = time::now() - time::system_start_time();
             (diff.as_secs(), diff.subsec_micros())

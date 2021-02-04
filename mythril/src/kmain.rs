@@ -180,7 +180,7 @@ pub extern "C" fn ap_entry(ap_data: &ap::ApData) -> ! {
     vcpu::mp_entry_point()
 }
 
-static LOGGER: logger::DirectLogger = logger::DirectLogger::new();
+static mut LOGGER: logger::DirectLogger = logger::DirectLogger::new();
 
 #[no_mangle]
 pub unsafe extern "C" fn kmain_early(multiboot_info_addr: usize) -> ! {
@@ -262,6 +262,10 @@ unsafe fn kmain(mut boot_info: BootInfo) -> ! {
         .expect("Failed to parse 'mythril.cfg'");
 
     debug!("mythril.cfg: {:?}", mythril_cfg);
+
+    if let Some(log_config) = mythril_cfg.log {
+        LOGGER.set_log_config(log_config);
+    }
 
     for (num, vm) in mythril_cfg.vms.into_iter().enumerate() {
         builder
