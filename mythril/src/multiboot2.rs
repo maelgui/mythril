@@ -42,7 +42,8 @@ fn setup_global_alloc_region(info: &multiboot2::BootInformation) -> (u64, u64) {
     debug!("Elf sections:");
     let sections = sections_tag.sections().map(|section| {
         debug!(
-            "  0x{:x}-0x{:x}",
+            "  {}: 0x{:x}-0x{:x}",
+            section.name(),
             section.start_address(),
             section.end_address()
         );
