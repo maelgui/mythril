@@ -240,6 +240,9 @@ unsafe fn kmain(mut boot_info: BootInfo) -> ! {
         .map(|(num, vm_cfg)| {
             build_vm(num as u32, &vm_cfg, &boot_info, num == 0)
         });
+
+    test1();
+
     vm::init_virtual_machines(vms)
         .expect("Failed to initialize early virtual machine state");
 
@@ -317,4 +320,14 @@ unsafe fn kmain(mut boot_info: BootInfo) -> ! {
     }
 
     vcpu::mp_entry_point()
+}
+
+#[inline(never)]
+fn test1() -> ! {
+    test2()
+}
+
+#[inline(never)]
+fn test2() -> ! {
+    panic!("Hello backtrace");
 }
