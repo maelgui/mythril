@@ -9,6 +9,7 @@ use x86::bits64::rflags::RFlags;
 
 extern "C" {
     static BSP_STACK_TOP: usize;
+    static BSP_STACK_BOTTOM: usize;
 }
 
 // See Section 30.4
@@ -167,14 +168,19 @@ fn out_of_memory(layout: ::core::alloc::Layout) -> ! {
 pub unsafe fn stack_trace() {
     #[inline(always)]
     unsafe fn is_addr_in_stack(addr: usize) -> bool {
-        addr != 0
+        address_of(&BSP_STACK_BOTTOM) <= addr && addr < address_of(&BSP_STACK_TOP)
+    }
+
+    fn address_of(sym: &usize) -> usize {
+        (sym as *const usize) as usize
     }
 
     let mut rbp: usize;
     asm!("mov {}, rbp", out(reg) rbp);
 
-    error!("STACK TOP={:X}", BSP_STACK_TOP);
-    error!("TRACE: {:>016X}", rbp);
+    error!("STACK TOP={:X}", address_of(&BSP_STACK_TOP));
+    error!("STACK BOTTOM={:X}", address_of(&BSP_STACK_BOTTOM));
+    error!("TRACE: {:016X}", rbp);
 
     //Maximum 64 frames
     for _frame in 0..64 {
@@ -182,18 +188,18 @@ pub unsafe fn stack_trace() {
             if is_addr_in_stack(rbp) && is_addr_in_stack(rip_rbp) {
                 let rip = *(rip_rbp as *const usize);
                 if rip == 0 {
-                    error!(" {:>016X}: EMPTY RETURN", rbp);
+                    error!("{:016X}: EMPTY RETURN", rbp);
                     break;
                 }
-                error!("  {:>016X}: {:>016X}", rbp, rip);
+                error!("  {:016X}: {:016X}", rbp, rip);
                 rbp = *(rbp as *const usize);
                 // symbol_trace(rip);
             } else {
-                error!("OUT OF STACK rbp={:>016X} rip_rbp={:>016X}", rbp, rip_rbp);
+                error!("OUT OF STACK rbp={:016X} rip_rbp={:016X}", rbp, rip_rbp);
                 break;
             }
         } else {
-            error!("  {:>016X}: RBP OVERFLOW", rbp);
+            error!("  {:016X}: RBP OVERFLOW", rbp);
             break;
         }
     }

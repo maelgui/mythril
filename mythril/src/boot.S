@@ -14,6 +14,7 @@ extern kmain_early
 ; The stack used before launching the guests. After that, the
 ; stack will be the one set up in the VMCS
 global BSP_STACK_TOP
+global BSP_STACK_BOTTOM
 section .bss
 BSP_STACK_BOTTOM:
    align PAGE_SIZE
