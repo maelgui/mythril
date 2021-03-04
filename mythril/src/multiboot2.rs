@@ -2,6 +2,7 @@ use crate::acpi;
 use crate::boot_info::{self, BootInfo};
 use crate::global_alloc;
 use crate::memory::HostPhysAddr;
+use crate::error::init_addr2line_context;
 use addr2line::gimli::{self, NativeEndian};
 use alloc::vec::Vec;
 use multiboot2::ElfSectionIter;
@@ -180,10 +181,7 @@ pub fn early_init_multiboot2(addr: HostPhysAddr) -> BootInfo {
         .elf_sections_tag()
         .expect("Missing multiboot elf sections tag");
     let context = build_addr2line_context(sections_tag.sections());
-    match context.find_location(0x0000000000158B2A) {
-        Ok(Some(loc)) => debug!("Test context loc: file={:?}, line={:?}, col={:?}", loc.file, loc.line, loc.column),
-        _ => debug!("Error getting context loc")
-    }
+    init_addr2line_context(context);
 
     BootInfo {
         modules: modules,

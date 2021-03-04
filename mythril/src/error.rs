@@ -6,6 +6,7 @@ use core::num::TryFromIntError;
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 use x86::bits64::rflags;
 use x86::bits64::rflags::RFlags;
+use spin::{Mutex, Once};
 
 extern "C" {
     static BSP_STACK_TOP: usize;
@@ -161,6 +162,13 @@ fn out_of_memory(layout: ::core::alloc::Layout) -> ! {
     );
 }
 
+static ADDR2LINE_CONTEXT: Once<Mutex<addr2line::Context<addr2line::gimli::EndianSlice<'static, addr2line::gimli::NativeEndian>>>> = Once::new();
+
+pub fn init_addr2line_context(ctx: addr2line::Context<addr2line::gimli::EndianSlice<'static, addr2line::gimli::NativeEndian>>) {
+    ADDR2LINE_CONTEXT.call_once(|| {
+        Mutex::new(ctx)
+    });
+}
 
 /// Get a stack trace
 //TODO: Check for stack being mapped before dereferencing
@@ -182,6 +190,8 @@ pub unsafe fn stack_trace() {
     error!("STACK BOTTOM={:X}", address_of(&BSP_STACK_BOTTOM));
     error!("TRACE: {:016X}", rbp);
 
+    let addr2line_ctx = ADDR2LINE_CONTEXT.wait();
+
     //Maximum 64 frames
     for _frame in 0..64 {
         if let Some(rip_rbp) = rbp.checked_add(core::mem::size_of::<usize>()) {
@@ -191,7 +201,22 @@ pub unsafe fn stack_trace() {
                     error!("{:016X}: EMPTY RETURN", rbp);
                     break;
                 }
+
                 error!("  {:016X}: {:016X}", rbp, rip);
+                if let Some(ctx) = addr2line_ctx {
+                    if let Ok(mut frame_iter) = ctx.lock().find_frames(rip as u64) {
+                        while let Ok(Some(frame)) = frame_iter.next() {
+                            if let Some(fn_name) = frame.function {
+                                error!("function name={:?}", fn_name.demangle());
+                            }
+
+                            if let Some(loc) = frame.location {
+                                error!("file={:?}, line={:?}, col={:?}", loc.file, loc.line, loc.column);
+                            }
+                        }
+                    }
+                }
+
                 rbp = *(rbp as *const usize);
                 // symbol_trace(rip);
             } else {
