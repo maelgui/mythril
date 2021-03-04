@@ -28,6 +28,7 @@ serde_json = {version = "^1", default-features = false, features = ["alloc"] }
 spin = "0.5"
 ux = { version = "0.1.3", default-features = false }
 managed = { version = "0.8.0", features = ["map", "alloc"], default-features = false }
+addr2line = { version = "0.14.1", default-features = false }
 
 [dependencies.arrayvec]
 version = "0.5.2"

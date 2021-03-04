@@ -2,7 +2,9 @@ use crate::acpi;
 use crate::boot_info::{self, BootInfo};
 use crate::global_alloc;
 use crate::memory::HostPhysAddr;
+use addr2line::gimli::{self, NativeEndian};
 use alloc::vec::Vec;
+use multiboot2::ElfSectionIter;
 
 extern "C" {
     pub static MULTIBOOT2_HEADER_START: u32;
@@ -14,6 +16,35 @@ extern "C" {
 // in turn makes them available to the linker script when linking the binary.
 pub fn header_location() -> (u32, u32) {
     unsafe { (MULTIBOOT2_HEADER_START, MULTIBOOT2_HEADER_END) }
+}
+
+fn build_addr2line_context(elf_sections: ElfSectionIter) -> addr2line::Context<gimli::EndianSlice<'static, NativeEndian>> {
+    unsafe fn load_section_data<S>(mut sections: ElfSectionIter) -> S
+        where S: gimli::Section<gimli::EndianSlice<'static, NativeEndian>>
+    {
+        let data = sections.find(|section| section.name() == S::section_name()).map(|section| {
+            core::slice::from_raw_parts(section.start_address() as *const u8, (section.end_address() - section.start_address()) as usize)
+        }).unwrap_or(&[]);
+        let slice = gimli::EndianSlice::new(data, NativeEndian);
+        S::from(slice)
+    }
+
+    unsafe {
+        let debug_abbrev = load_section_data(elf_sections.clone());
+        let debug_addr = load_section_data(elf_sections.clone());
+        let debug_info = load_section_data(elf_sections.clone());
+        let debug_line = load_section_data(elf_sections.clone());
+        let debug_line_str = load_section_data(elf_sections.clone());
+        let debug_ranges = load_section_data(elf_sections.clone());
+        let debug_rnglists = load_section_data(elf_sections.clone());
+        let debug_str = load_section_data(elf_sections.clone());
+        let debug_str_offsets = load_section_data(elf_sections.clone());
+
+        let default_section = gimli::EndianSlice::new(&[], NativeEndian);
+
+        addr2line::Context::from_sections(debug_abbrev, debug_addr, debug_info, debug_line, debug_line_str, debug_ranges, debug_rnglists, debug_str, debug_str_offsets, default_section)
+            .expect("Failed to create addr2line context")
+    }
 }
 
 fn setup_global_alloc_region(info: &multiboot2::BootInformation) -> (u64, u64) {
@@ -28,9 +59,10 @@ fn setup_global_alloc_region(info: &multiboot2::BootInformation) -> (u64, u64) {
     debug!("Modules:");
     let modules = info.module_tags().map(|module| {
         debug!(
-            "  0x{:x}-0x{:x}",
+            "{}:  0x{:x}-0x{:x}",
+            module.name(),
             module.start_address(),
-            module.end_address()
+            module.end_address(),
         );
         (module.start_address() as u64, module.end_address() as u64)
     });
@@ -49,6 +81,12 @@ fn setup_global_alloc_region(info: &multiboot2::BootInformation) -> (u64, u64) {
         );
         (section.start_address(), section.end_address())
     });
+
+    debug!("Memory areas:");
+    for mem_area in info.memory_map_tag().expect("No memory map").memory_areas() {
+        debug!("{:x}:{:x} ({:?})", mem_area.start_address(), mem_area.end_address(), mem_area.typ());
+    }
+
 
     // Avoid allocating over the BootInformation structure itself
     let multiboot_info =
@@ -137,6 +175,15 @@ pub fn early_init_multiboot2(addr: HostPhysAddr) -> BootInfo {
                     },
                 })
         });
+
+    let sections_tag = multiboot_info
+        .elf_sections_tag()
+        .expect("Missing multiboot elf sections tag");
+    let context = build_addr2line_context(sections_tag.sections());
+    match context.find_location(0x0000000000158B2A) {
+        Ok(Some(loc)) => debug!("Test context loc: file={:?}, line={:?}, col={:?}", loc.file, loc.line, loc.column),
+        _ => debug!("Error getting context loc")
+    }
 
     BootInfo {
         modules: modules,
