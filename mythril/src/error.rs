@@ -179,6 +179,7 @@ pub unsafe fn stack_trace() {
         address_of(&BSP_STACK_BOTTOM) <= addr && addr < address_of(&BSP_STACK_TOP)
     }
 
+    #[inline(always)]
     fn address_of(sym: &usize) -> usize {
         (sym as *const usize) as usize
     }
@@ -189,8 +190,6 @@ pub unsafe fn stack_trace() {
     error!("STACK TOP={:X}", address_of(&BSP_STACK_TOP));
     error!("STACK BOTTOM={:X}", address_of(&BSP_STACK_BOTTOM));
     error!("TRACE: {:016X}", rbp);
-
-    let addr2line_ctx = ADDR2LINE_CONTEXT.wait();
 
     //Maximum 64 frames
     for _frame in 0..64 {
@@ -203,19 +202,7 @@ pub unsafe fn stack_trace() {
                 }
 
                 error!("  {:016X}: {:016X}", rbp, rip);
-                if let Some(ctx) = addr2line_ctx {
-                    if let Ok(mut frame_iter) = ctx.lock().find_frames(rip as u64) {
-                        while let Ok(Some(frame)) = frame_iter.next() {
-                            if let Some(fn_name) = frame.function {
-                                error!("function name={:?}", fn_name.demangle());
-                            }
-
-                            if let Some(loc) = frame.location {
-                                error!("file={:?}, line={:?}, col={:?}", loc.file, loc.line, loc.column);
-                            }
-                        }
-                    }
-                }
+                print_stack_trace_symbol(rip as u64);
 
                 rbp = *(rbp as *const usize);
                 // symbol_trace(rip);
@@ -226,6 +213,34 @@ pub unsafe fn stack_trace() {
         } else {
             error!("  {:016X}: RBP OVERFLOW", rbp);
             break;
+        }
+    }
+}
+
+fn print_stack_trace_symbol(addr: u64) {
+    if let Some(ctx) = ADDR2LINE_CONTEXT.wait() {
+        if let Ok(mut frame_iter) = ctx.lock().find_frames(addr) {
+            while let Ok(Some(frame)) = frame_iter.next() {
+                let mut loc_line = String::new();
+                if let Some(fn_name) = frame.function {
+                    if let Ok(demangled_name) = fn_name.demangle() {
+                        loc_line.push_str(&format!("in {}", demangled_name));
+                    }
+                }
+
+                if let Some(loc) = frame.location {
+                    if let Some(file) = loc.file {
+                        loc_line.push_str(&format!(" at {}", file));
+                        if let Some(line) = loc.line {
+                            loc_line.push_str(&format!(":{}", line));
+                            if let Some(col) = loc.column {
+                                loc_line.push_str(&format!(":{}", col));
+                            }
+                        }
+                    }
+                }
+                error!("{}", loc_line);
+            }
         }
     }
 }
