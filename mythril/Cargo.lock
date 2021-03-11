@@ -137,9 +137,11 @@ checksum = "0ca88d725a0a943b096803bd34e73a4437208b6077654cc4ecb2947a5f91618d"
 
 [[package]]
 name = "multiboot"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "745e351d4f128ea9e266fe2dd04a1bd7349c60441d45ec8677520bae08e25d43"
+version = "0.6.0"
+dependencies = [
+ "bitflags",
+ "paste",
+]
 
 [[package]]
 name = "multiboot2"
