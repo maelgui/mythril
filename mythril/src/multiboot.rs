@@ -2,6 +2,9 @@ use crate::boot_info::{self, BootInfo};
 use crate::global_alloc;
 use crate::memory::HostPhysAddr;
 use alloc::vec::Vec;
+use multiboot::information::{
+    MemoryManagement, MemoryType, Multiboot, PAddr, SymbolType,
+};
 
 extern "C" {
     pub static MULTIBOOT_HEADER_START: u32;
@@ -12,23 +15,46 @@ extern "C" {
     pub static END_OF_BINARY: u8;
 }
 
+struct Mem;
+
+impl MemoryManagement for Mem {
+    unsafe fn paddr_to_slice(
+        &self,
+        addr: PAddr,
+        size: usize,
+    ) -> Option<&'static [u8]> {
+        let ptr = core::mem::transmute(addr);
+        Some(core::slice::from_raw_parts(ptr, size))
+    }
+
+    unsafe fn allocate(
+        &mut self,
+        _length: usize,
+    ) -> Option<(PAddr, &mut [u8])> {
+        None
+    }
+
+    unsafe fn deallocate(&mut self, addr: PAddr) {
+        if addr != 0 {
+            unimplemented!()
+        }
+    }
+}
+
 // NOTE: see multiboot2::header_location for more information
 pub fn header_location() -> (u32, u32) {
     unsafe { (MULTIBOOT_HEADER_START, MULTIBOOT_HEADER_END) }
 }
 
-fn setup_global_alloc_region<'a, F>(
-    info: &'a multiboot::Multiboot<'a, F>,
-) -> (u64, u64)
-where
-    F: Fn(u64, usize) -> Option<&'a [u8]>,
-{
+fn setup_global_alloc_region<'a, 'b>(
+    info: &'a Multiboot<'a, 'b>,
+) -> (u64, u64) {
     let regions = info
         .memory_regions()
         .expect("Missing multiboot memory regions");
 
     let available = regions.filter_map(|region| match region.memory_type() {
-        multiboot::MemoryType::Available => Some((
+        MemoryType::Available => Some((
             region.base_address(),
             region.base_address() + region.length(),
         )),
@@ -77,14 +103,10 @@ where
 }
 
 pub fn early_init_multiboot(addr: HostPhysAddr) -> BootInfo {
-    fn multiboot_addr_translate<'a>(
-        paddr: u64,
-        size: usize,
-    ) -> Option<&'a [u8]> {
-        unsafe { Some(core::slice::from_raw_parts(paddr as *const u8, size)) }
-    }
+    let mut mem = Mem;
+
     let multiboot_info = unsafe {
-        multiboot::Multiboot::new(addr.as_u64(), multiboot_addr_translate)
+        Multiboot::from_ptr(addr.as_u64(), &mut mem)
             .expect("Failed to create Multiboot structure")
     };
 
