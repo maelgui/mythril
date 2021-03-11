@@ -110,6 +110,21 @@ pub fn early_init_multiboot(addr: HostPhysAddr) -> BootInfo {
             .expect("Failed to create Multiboot structure")
     };
 
+    debug!("Elf sections:");
+    let symbols = multiboot_info.symbols().expect("Unable to unwrap symbols");
+    if let SymbolType::Elf(elf_symbols) = symbols {
+        let elf_section_iter = elf_symbols.sections();
+
+        for elf_section in elf_section_iter {
+            debug!(
+                "{}  0x{:x}-0x{:x}",
+                elf_section.name(),
+                elf_section.start_address(),
+                elf_section.end_address()
+            );
+        }
+    }
+
     let alloc_region = setup_global_alloc_region(&multiboot_info);
 
     info!(
