@@ -27,6 +27,10 @@ pub fn emulate_cpuid(
         res.edx = crate::percore::read_core_id().raw as u32;
     }
 
+    if guest_cpu.rax as u32 == 7 && guest_cpu.rcx as u32 == 0 {
+        res.ebx &= !(1 << 10);
+    }
+
     guest_cpu.rax = res.eax as u64 | (guest_cpu.rax & 0xffffffff00000000);
     guest_cpu.rbx = res.ebx as u64 | (guest_cpu.rbx & 0xffffffff00000000);
     guest_cpu.rcx = res.ecx as u64 | (guest_cpu.rcx & 0xffffffff00000000);

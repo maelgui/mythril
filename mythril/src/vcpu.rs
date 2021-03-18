@@ -373,7 +373,7 @@ impl VCpu {
                 | vmcs::SecondaryExecFlags::ENABLE_EPT
                 | vmcs::SecondaryExecFlags::ENABLE_RDTSCP
                 | vmcs::SecondaryExecFlags::ENABLE_VPID
-                | vmcs::SecondaryExecFlags::ENABLE_INVPCID
+//                | vmcs::SecondaryExecFlags::ENABLE_INVPCID
                 | vmcs::SecondaryExecFlags::UNRESTRICTED_GUEST)
                 .bits(),
             msr::IA32_VMX_PROCBASED_CTLS2,

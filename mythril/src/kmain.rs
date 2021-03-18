@@ -220,8 +220,8 @@ unsafe fn kmain(mut boot_info: BootInfo) -> ! {
         apic::LocalApic::init().expect("Failed to initialize local APIC");
 
     ioapic::init_ioapics(&madt).expect("Failed to initialize IOAPICs");
-    ioapic::map_gsi_vector(interrupt::gsi::UART, interrupt::vector::UART, 0)
-        .expect("Failed to map com0 gsi");
+    //ioapic::map_gsi_vector(interrupt::gsi::UART, interrupt::vector::UART, 0)
+    //    .expect("Failed to map com0 gsi");
 
     let raw_cfg = boot_info
         .find_module("mythril.cfg")

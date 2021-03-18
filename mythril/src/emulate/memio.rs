@@ -141,6 +141,7 @@ fn read_register_value(
         iced_x86::Register::BP => read_register!(res, guest_cpu.rbp, u16),
         iced_x86::Register::EBP => read_register!(res, guest_cpu.rbp, u32),
         iced_x86::Register::RBP => read_register!(res, guest_cpu.rbp, u64),
+        iced_x86::Register::AH => { return Err(Error::InvalidValue(format!("AH register")))}
 
         _ => {
             return Err(Error::InvalidValue(format!(
@@ -414,6 +415,7 @@ fn process_memio_op(
     )?;
 
     let efer = vcpu.vmcs.read_field(vmcs::VmcsField::GuestIa32Efer)?;
+    info!("efer : {:?}", efer);
     // TODO: 16bit support
     let mode = if efer & 0x00000100 != 0 { 64 } else { 32 };
 
@@ -421,6 +423,9 @@ fn process_memio_op(
         iced_x86::Decoder::new(mode, &bytes, iced_x86::DecoderOptions::NONE);
     decoder.set_ip(ip);
     let instr = decoder.decode();
+
+    info!("instr: {:?}", &bytes);
+
 
     // For now, just assume everything is like MOV. This is obviously very
     // incomplete.
@@ -433,6 +438,7 @@ fn process_memio_op(
     {
         do_mmio_read(addr, vcpu, guest_cpu, responses, instr, on_read)?;
     } else {
+        debug!("MMIO: instruction {:?}", instr.op1_kind());
         return Err(Error::InvalidValue(format!(
             "Unsupported mmio instruction: {:?} (rip=0x{:x}, bytes={:?})",
             instr.code(),
@@ -485,7 +491,9 @@ pub fn handle_apic_access(
         assert!(
             addr >= apic_base && addr < (apic_base + BASE_PAGE_SIZE as u64)
         );
-        ((addr - apic_base) / size_of::<u32>() as u64) as u16
+        let a = ((addr - apic_base) / size_of::<u32>() as u64) as u16;
+        info!("a : {:?}", a);
+        a
     }
 
     fn on_apic_read(
@@ -529,6 +537,8 @@ pub fn handle_apic_access(
     let addr = vm::GUEST_LOCAL_APIC_ADDR
         + (exit.offset.expect("Apic access with no offset") as usize
             * size_of::<u32>());
+
+    info!("addr : {:?}", addr);
 
     process_memio_op(
         addr,
