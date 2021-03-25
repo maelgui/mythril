@@ -1,4 +1,4 @@
-use core::convert::TryInto;
+use core::{convert::TryInto, hash::BuildHasher};
 
 use crate::error::Result;
 use crate::interrupt;
@@ -6,9 +6,14 @@ use crate::physdev::keyboard::*;
 use crate::virtdev::{DeviceEvent, DeviceEventResponse, DeviceRegion, EmulatedDevice, Event, Port};
 use alloc::vec::Vec;
 
+const BUF_SIZE: usize = 16;
+
 #[derive(Debug)]
 pub struct Keyboard8042{
-    data_register: u8,
+    buf: [u8; BUF_SIZE],
+    buf_head: usize,
+    buf_tail: usize,
+
     status_register: Ps2StatusFlags,
     configuration: Ps2ConfigurationFlags,
     writing_configuration: bool,
@@ -21,7 +26,9 @@ impl Keyboard8042 {
 
     pub fn default() -> Self {
         Self {
-            data_register: 0,
+            buf: [0; BUF_SIZE],
+            buf_head: 0,
+            buf_tail: 0,
             status_register: Ps2StatusFlags::empty(),
             configuration: Ps2ConfigurationFlags::empty(),
             writing_configuration: false,
@@ -33,19 +40,30 @@ impl Keyboard8042 {
         Ok(Self::default())
     }
 
+    fn buf_len(&self) -> usize {
+        self.buf_tail - self.buf_head
+    }
+
     fn write(&mut self, data: u8) {
-        self.data_register = data;
         self.status_register.insert(Ps2StatusFlags::OUTPUT_BUFFER_FULL);
+        if self.buf_len() == BUF_SIZE {
+            panic!("Keyboard buffer full")
+        }
+        self.buf[self.buf_tail] = data;
+        self.buf_tail = (self.buf_tail + 1) % BUF_SIZE;
     }
 
     fn read(&mut self) -> Option<u8> {
-        if self.status_register.contains(Ps2StatusFlags::OUTPUT_BUFFER_FULL) {
+        if self.buf_len() == 0 {
+            return None;
+        }
+
+        let res = self.buf[self.buf_head];
+        self.buf_head = (self.buf_head + 1) % BUF_SIZE;
+        if self.buf_len() == 0 {
             self.status_register.remove(Ps2StatusFlags::OUTPUT_BUFFER_FULL);
-            Some(self.data_register)
         }
-        else {
-            None
-        }
+        Some(res)
     }
 }
 
@@ -80,7 +98,7 @@ impl EmulatedDevice for Keyboard8042 {
             DeviceEvent::HostKeyboardReceived(key) => {
                 event
                     .responses
-                    .push(DeviceEventResponse::GSI(interrupt::gsi::UART));
+                    .push(DeviceEventResponse::GSI(interrupt::gsi::KEYBOARD));
                 self.write(key);
                 debug!("Keyboard interrupt {}", key);
             }
@@ -89,7 +107,9 @@ impl EmulatedDevice for Keyboard8042 {
                 debug!("PortWrite {} {:?}", port, val);
                 if port == Self::PS2_STATUS {
                     match Command::from(val) {
-                        Command::ReadConfig => {}
+                        Command::ReadConfig => {
+                            self.write(self.configuration.bits());
+                        }
                         Command::WriteConfig => {
                             self.writing_configuration = true;
                         }
@@ -108,6 +128,8 @@ impl EmulatedDevice for Keyboard8042 {
                         }
                         Command::EnableFirst => {}
                         Command::WriteSecond => {}
+                        Command::WriteFirst => {},
+                        Command::Unknown => {},
                     }
                 }
                 else {
@@ -121,8 +143,12 @@ impl EmulatedDevice for Keyboard8042 {
                                 self.write(0xFA);
                                 self.reseting = true;
                             },
-                            0xF5 | 0xF2 | 0x02 => self.write(0xFA),
-                            _ => ()
+                            0xF2 => {
+                                self.write(0xFA);
+                                self.write(0xAB);
+                                self.write(0x83);
+                            }
+                            _ => self.write(0xFA),
                         }
                     }
                 }

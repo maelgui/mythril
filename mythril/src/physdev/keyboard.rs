@@ -50,7 +50,9 @@ pub enum Command {
     Diagnostic = 0xAC,
     DisableFirst = 0xAD,
     EnableFirst = 0xAE,
+    WriteFirst = 0xD1,
     WriteSecond = 0xD4,
+    Unknown,
 }
 
 impl From<u8> for Command {
@@ -66,8 +68,9 @@ impl From<u8> for Command {
             0xAC => Self::Diagnostic,
             0xAD => Self::DisableFirst,
             0xAE => Self::EnableFirst,
+            0xD1 => Self::WriteFirst,
             0xD4 => Self::WriteSecond,
-            _ => panic!("Invalid command")
+            _ => Self::Unknown
         }
     }
 }
