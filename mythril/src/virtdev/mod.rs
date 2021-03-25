@@ -33,6 +33,7 @@ pub enum DynamicVirtualDevice {
     DebugPort(debug::DebugPort),
     Uart(com::Uart8250),
     Qemu(qemu_fw_cfg::QemuFwCfg),
+    Keyboard(keyboard::Keyboard8042)
 }
 
 impl EmulatedDevice for DynamicVirtualDevice {
@@ -41,6 +42,7 @@ impl EmulatedDevice for DynamicVirtualDevice {
             DynamicVirtualDevice::DebugPort(port) => port.services(),
             DynamicVirtualDevice::Uart(uart) => uart.services(),
             DynamicVirtualDevice::Qemu(qemu) => qemu.services(),
+            DynamicVirtualDevice::Keyboard(keyboard) => keyboard.services(),
         }
     }
 
@@ -49,6 +51,7 @@ impl EmulatedDevice for DynamicVirtualDevice {
             DynamicVirtualDevice::DebugPort(port) => port.on_event(event),
             DynamicVirtualDevice::Uart(uart) => uart.on_event(event),
             DynamicVirtualDevice::Qemu(qemu) => qemu.on_event(event),
+            DynamicVirtualDevice::Keyboard(keyboard) => keyboard.on_event(event),
         }
     }
 }
@@ -56,6 +59,7 @@ impl EmulatedDevice for DynamicVirtualDevice {
 #[derive(Debug)]
 pub enum DeviceEvent<'a> {
     HostUartReceived(u8),
+    HostKeyboardReceived(u8),
     MemRead(GuestPhysAddr, MemReadRequest<'a>),
     MemWrite(GuestPhysAddr, MemWriteRequest<'a>),
     PortRead(Port, PortReadRequest<'a>),

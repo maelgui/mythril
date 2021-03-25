@@ -48,7 +48,10 @@ fn build_vm(
                 physdev::com::Uart8250::new(0x3f8)
                     .expect("Failed to create UART"),
             )),
-            ps2_keyboard: RwLock::new(None),
+            ps2_keyboard: RwLock::new(Some(
+                physdev::keyboard::Ps2Controller::init()
+                    .expect("Failed to create Keyboard")
+            )),
         }
     };
 
@@ -94,6 +97,10 @@ fn build_vm(
     virtual_devices.push(RwLock::new(virtdev::DynamicVirtualDevice::Uart(
         virtdev::com::Uart8250::new(0x3F8).expect("Failed to make Uart"),
     )));
+
+    // virtual_devices.push(RwLock::new(virtdev::DynamicVirtualDevice::Keyboard(
+    //     virtdev::keyboard::Keyboard8042::new().expect("Failed to make Keyboard"),
+    // )));
 
     let mut fw_cfg_builder = virtdev::qemu_fw_cfg::QemuFwCfgBuilder::new();
 
@@ -221,6 +228,9 @@ unsafe fn kmain(mut boot_info: BootInfo) -> ! {
 
     ioapic::init_ioapics(&madt).expect("Failed to initialize IOAPICs");
     ioapic::map_gsi_vector(interrupt::gsi::UART, interrupt::vector::UART, 0)
+        .expect("Failed to map com0 gsi");
+    
+    ioapic::map_gsi_vector(interrupt::gsi::KEYBOARD, interrupt::vector::KEYBOARD, 0)
         .expect("Failed to map com0 gsi");
 
     let raw_cfg = boot_info

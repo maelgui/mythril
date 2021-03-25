@@ -1,4 +1,4 @@
-use crate::apic;
+use crate::{apic, physdev::keyboard::Ps2Controller};
 use crate::emulate;
 use crate::error::{self, Error, Result};
 use crate::interrupt;
@@ -609,6 +609,30 @@ impl VCpu {
         }
     }
 
+    fn handle_keyboard_keypress(
+        &mut self,
+        responses: &mut virtdev::ResponseEventArray,
+    ) -> Result<()> {
+        let keyboard_info = self
+            .vm
+            .host_devices
+            .ps2_keyboard
+            .read()
+            .as_ref()
+            .map(|ps2_controller| (ps2_controller.read_data_port(), Ps2Controller::data_port()));
+
+        if let Some((key, port)) = keyboard_info {
+            self.vm.dispatch_event(
+                port,
+                virtdev::DeviceEvent::HostKeyboardReceived(key),
+                self,
+                responses,
+            )
+        } else {
+            Ok(())
+        }
+    }
+
     fn handle_vmexit_impl(
         &mut self,
         guest_cpu: &mut vmexit::GuestCpuState,
@@ -675,6 +699,9 @@ impl VCpu {
                     }
                     interrupt::vector::IPC => {
                         self.handle_ipc()?;
+                    }
+                    interrupt::vector::KEYBOARD => {
+                        self.handle_keyboard_keypress(&mut responses)?;
                     }
                     _ => (),
                 }

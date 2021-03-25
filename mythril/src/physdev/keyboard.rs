@@ -1,5 +1,3 @@
-#![deny(missing_docs)]
-
 //! # Physical PS2 Support
 //!
 //! This module provides support for interacting with a physical
@@ -14,7 +12,7 @@ const PS2_STATUS_PORT: u16 = 0x64;
 const PS2_COMMAND_PORT: u16 = 0x64;
 
 bitflags! {
-    struct Ps2StatusFlags: u8 {
+    pub struct Ps2StatusFlags: u8 {
         const OUTPUT_BUFFER_FULL = 1 << 0;
         const INPUT_BUFFER_FULL = 1 << 1;
         const SELF_TEST_PASS = 1 << 2;
@@ -27,7 +25,7 @@ bitflags! {
 }
 
 bitflags! {
-    struct Ps2ConfigurationFlags: u8 {
+    pub struct Ps2ConfigurationFlags: u8 {
         const FIRST_PORT_INTERRUPT = 1 << 0;
         const SECOND_PORT_INTERRUPT = 1 << 1;
         const SYSTEM_POST = 1 << 2;
@@ -41,7 +39,7 @@ bitflags! {
 
 #[repr(u8)]
 #[allow(dead_code)]
-enum Command {
+pub enum Command {
     ReadConfig = 0x20,
     WriteConfig = 0x60,
     DisableSecond = 0xA7,
@@ -53,6 +51,25 @@ enum Command {
     DisableFirst = 0xAD,
     EnableFirst = 0xAE,
     WriteSecond = 0xD4,
+}
+
+impl From<u8> for Command {
+    fn from(command: u8) -> Self {
+        match command {
+            0x20 => Self::ReadConfig,
+            0x60 => Self::WriteConfig,
+            0xA7 => Self::DisableSecond,
+            0xA8 => Self::EnableSecond,
+            0xA9 => Self::TestSecond,
+            0xAA => Self::TestController,
+            0xAB => Self::TestFirst,
+            0xAC => Self::Diagnostic,
+            0xAD => Self::DisableFirst,
+            0xAE => Self::EnableFirst,
+            0xD4 => Self::WriteSecond,
+            _ => panic!("Invalid command")
+        }
+    }
 }
 
 /// A representation of a physical PS2 keyboard controller
@@ -131,7 +148,7 @@ impl Ps2Controller {
     }
 
     /// Read a pending byte of data from the controller
-    pub fn read_data_port(&mut self) -> u8 {
+    pub fn read_data_port(&self) -> u8 {
         self.wait_read();
         unsafe { inb(PS2_DATA_PORT) }
     }
@@ -143,7 +160,7 @@ impl Ps2Controller {
         }
     }
 
-    fn read_status_port(&mut self) -> Ps2StatusFlags {
+    fn read_status_port(&self) -> Ps2StatusFlags {
         Ps2StatusFlags::from_bits_truncate(unsafe { inb(PS2_STATUS_PORT) })
     }
 
@@ -157,7 +174,7 @@ impl Ps2Controller {
         self.write_data_port(config.bits())
     }
 
-    fn wait_read(&mut self) {
+    fn wait_read(&self) {
         while !self
             .read_status_port()
             .contains(Ps2StatusFlags::OUTPUT_BUFFER_FULL)
@@ -175,5 +192,10 @@ impl Ps2Controller {
         unsafe {
             outb(PS2_COMMAND_PORT, cmd as u8);
         }
+    }
+
+    /// Return the data port
+    pub fn data_port() -> u16 {
+        PS2_DATA_PORT
     }
 }
