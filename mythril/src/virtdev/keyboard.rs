@@ -92,13 +92,9 @@ impl EmulatedDevice for Keyboard8042 {
                 }
             }
             DeviceEvent::HostKeyboardReceived(key) => {
-                if self.enabled {
-                    event
-                        .responses
-                        .push(DeviceEventResponse::GSI(interrupt::gsi::KEYBOARD));
-                    self.write(key);
-                    //debug!("Keyboard interrupt {}", key);
-                }
+                event
+                    .responses
+                    .push(DeviceEventResponse::PS2Input(key));
             }
             DeviceEvent::PortWrite(port, val) => {
                 let val: u8 = val.try_into()?;

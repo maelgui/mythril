@@ -12,10 +12,20 @@ use crate::{declare_per_core, get_per_core_mut};
 use crate::{virtdev, vm, vmcs, vmexit, vmx};
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
+use pc_keyboard::{HandleControl, Keyboard, ScancodeSet1, layouts, DecodedKey};
+use spin::Mutex;
 use core::mem;
 use core::pin::Pin;
 use x86::controlregs::{cr0, cr3, cr4};
 use x86::msr;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref KEYBOARD: Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>> =
+    Mutex::new(Keyboard::new(layouts::Us104Key, ScancodeSet1,
+        HandleControl::Ignore)
+    );
+}
 
 extern "C" {
     pub fn vmlaunch_wrapper() -> u64;
@@ -710,6 +720,24 @@ impl VCpu {
                 // the local apic
                 apic::get_local_apic_mut().eoi();
             },
+            vmexit::ExitInformation::FakeUartKeyPressed(key) => {
+                let serial_info = self
+                    .vm
+                    .host_devices
+                    .serial
+                    .read()
+                    .as_ref()
+                    .map(|serial| serial.base_port());
+
+                if let Some(port) = serial_info {
+                    self.vm.dispatch_event(
+                        port,
+                        virtdev::DeviceEvent::HostUartReceived(key),
+                        self,
+                        &mut responses,
+                    )?;
+                }
+            }
             _ => {
                 info!("{}", self.vmcs);
                 panic!("No handler for exit reason: {:?}", exit);
@@ -763,6 +791,24 @@ impl VCpu {
                         let buff = &[val];
                         let s = alloc::string::String::from_utf8_lossy(buff);
                         crate::logger::write_console(&s);
+                    }
+                },
+                virtdev::DeviceEventResponse::PS2Input(key) => {
+                    let mut keyboard = KEYBOARD.lock();
+
+                    if let Ok(Some(key_event)) = keyboard.add_byte(key) {
+                        if let Some(key) = keyboard.process_keyevent(key_event) {
+                            match key {
+                                DecodedKey::Unicode(character) => {
+                                    let reason = vmexit::ExitReason {
+                                        flags: vmexit::ExitReasonFlags::empty(),
+                                        info: vmexit::ExitInformation::FakeUartKeyPressed(character as u8)
+                                    };
+                                    self.handle_vmexit_impl(guest_cpu, reason)?;
+                                },
+                                DecodedKey::RawKey(key) => (),
+                            }
+                        }
                     }
                 }
             }

@@ -136,6 +136,7 @@ pub enum ExitInformation {
     PageModificationLogFull,
     Xsaves,
     Xrstors,
+    FakeUartKeyPressed(u8),
 }
 
 impl ExitReason {

@@ -26,6 +26,7 @@ qemu-system-x86_64 -enable-kvm \
                    -smp cores=6,threads=1,sockets=1 \
                    -serial stdio \
                    -display gtk \
+                   -device VGA \
                    -cdrom os.iso \
                    -net none \
                    -debugcon file:debug.log \

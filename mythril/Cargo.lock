@@ -159,6 +159,7 @@ dependencies = [
  "bitflags",
  "byteorder",
  "iced-x86",
+ "lazy_static",
  "linked_list_allocator",
  "log",
  "managed",
@@ -167,6 +168,7 @@ dependencies = [
  "nasm-rs",
  "num_enum",
  "paste",
+ "pc-keyboard",
  "raw-cpuid",
  "rlibc",
  "serde",
@@ -208,6 +210,12 @@ name = "paste"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5d65c4d95931acda4498f675e332fcbdc9a06705cd07086c510e9b6009cd1c1"
+
+[[package]]
+name = "pc-keyboard"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c6f2d937e3b8d63449b01401e2bae4041bc9dd1129c2e3e0d239407cf6635ac"
 
 [[package]]
 name = "proc-macro2"

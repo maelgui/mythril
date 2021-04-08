@@ -71,6 +71,7 @@ pub enum DeviceEventResponse {
     GuestUartTransmitted(u8),
     NextConsole,
     GSI(u32),
+    PS2Input(u8),
 }
 
 pub struct Event<'a> {
