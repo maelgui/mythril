@@ -17,7 +17,7 @@ pub struct Keyboard8042{
     status_register: Ps2StatusFlags,
     configuration: Ps2ConfigurationFlags,
     writing_configuration: bool,
-    reseting: bool,
+    enabled: bool,
 }
 
 impl Keyboard8042 {
@@ -32,7 +32,7 @@ impl Keyboard8042 {
             status_register: Ps2StatusFlags::empty(),
             configuration: Ps2ConfigurationFlags::empty(),
             writing_configuration: false,
-            reseting: false,
+            enabled: true,
         }
     }
 
@@ -80,11 +80,7 @@ impl EmulatedDevice for Keyboard8042 {
             DeviceEvent::PortRead(port, mut val) => {
                 if port == Self::PS2_DATA {
                     if let Some(key) = self.read() {
-                        debug!("VM read port 1");
-                        if self.reseting {
-                            self.reseting = false;
-                            self.write(0xAA);
-                        }
+                        //debug!("VM read port 1");
                         val.copy_from_u32(key.into());
                     }
                     else {
@@ -96,15 +92,17 @@ impl EmulatedDevice for Keyboard8042 {
                 }
             }
             DeviceEvent::HostKeyboardReceived(key) => {
-                event
-                    .responses
-                    .push(DeviceEventResponse::GSI(interrupt::gsi::KEYBOARD));
-                self.write(key);
-                debug!("Keyboard interrupt {}", key);
+                if self.enabled {
+                    event
+                        .responses
+                        .push(DeviceEventResponse::GSI(interrupt::gsi::KEYBOARD));
+                    self.write(key);
+                    //debug!("Keyboard interrupt {}", key);
+                }
             }
             DeviceEvent::PortWrite(port, val) => {
                 let val: u8 = val.try_into()?;
-                debug!("PortWrite {} {:?}", port, val);
+                //debug!("PortWrite {:X?} {:X?}", port, val);
                 if port == Self::PS2_STATUS {
                     match Command::from(val) {
                         Command::ReadConfig => {
@@ -138,10 +136,22 @@ impl EmulatedDevice for Keyboard8042 {
                         self.writing_configuration = false;
                     }
                     else {
+                        // https://wiki.osdev.org/PS/2_Keyboard
                         match val {
                             0xFF => {
                                 self.write(0xFA);
-                                self.reseting = true;
+                                self.write(0xAA);
+                            },
+                            0xEE => {
+                                self.write(0xEE);
+                            }
+                            0xF4 => {
+                                self.enabled = true;
+                                self.write(0xFA);
+                            },
+                            0xF5 => {
+                                self.enabled = false;
+                                self.write(0xFA);
                             },
                             0xF2 => {
                                 self.write(0xFA);
