@@ -1,9 +1,11 @@
 use crate::error::{Error, Result};
+use crate::memory::GuestPhysAddr;
 use crate::virtdev::{
     DeviceEvent, DeviceRegion, EmulatedDevice, Event, Port, PortReadRequest,
     PortWriteRequest,
 };
 use alloc::vec::Vec;
+use x86::io::{inb, outb, outw};
 use core::convert::{TryFrom, TryInto};
 use num_enum::TryFromPrimitive;
 
@@ -70,17 +72,10 @@ impl VgaController {
         port: Port,
         mut val: PortReadRequest,
     ) -> Result<()> {
-        match port {
-            Self::VGA_DATA => {
-                val.copy_from_u32(self.registers[self.index as usize] as u32);
+                unsafe {
+                    let v = inb(port);
+                    val.copy_from_u32(v as u32);
             }
-            _ => {
-                return Err(Error::NotImplemented(format!(
-                    "Unsupported attempt to read from vga port 0x{:x}",
-                    port
-                )))
-            }
-        }
         Ok(())
     }
 
@@ -89,37 +84,27 @@ impl VgaController {
         port: Port,
         val: PortWriteRequest,
     ) -> Result<()> {
-        match port {
-            Self::VGA_INDEX => match val {
+        match val {
                 PortWriteRequest::OneByte(b) => {
-                    self.index = VgaRegister::try_from(b[0])?;
+                    unsafe {
+                        outb(port, b[0]);
+                    }
                 }
 
                 // The VGA controller allows a register update and data write
                 // in one operation (and linux actually does this), so handle
                 // that here
                 PortWriteRequest::TwoBytes(bytes) => {
-                    let index = bytes[1];
-                    let data = bytes[0];
-                    self.index = VgaRegister::try_from(index)?;
-                    self.registers[self.index as usize] = data;
+                    unsafe {
+                        outw(port, (bytes[1] as u16) + (bytes[0] as u16) << 8);
+                    }
                 }
                 _ => {
-                    return Err(Error::InvalidValue(format!(
+                    panic!(
                         "Invalid port write to VGA index register: {:?}",
                         val
-                    )))
+                    );
                 }
-            },
-            Self::VGA_DATA => {
-                self.registers[self.index as usize] = val.try_into()?;
-            }
-            _ => {
-                return Err(Error::NotImplemented(format!(
-                    "Unsupported attempt to write to vga port 0x{:x}",
-                    port
-                )))
-            }
         }
         Ok(())
     }
@@ -129,17 +114,22 @@ impl EmulatedDevice for VgaController {
     fn services(&self) -> Vec<DeviceRegion> {
         vec![
             // vga stuff
-            DeviceRegion::PortIo(Self::VGA_INDEX..=Self::VGA_DATA),
+            //DeviceRegion::PortIo(Self::VGA_INDEX..=Self::VGA_DATA),
+            DeviceRegion::PortIo(0x3B4..=0x3DA),
+            DeviceRegion::MemIo(GuestPhysAddr::new(0xA0000)..=GuestPhysAddr::new(0xBFFFF)),
         ]
     }
 
     fn on_event(&mut self, event: Event) -> Result<()> {
+        //panic!("HERE !");
         match event.kind {
             DeviceEvent::PortRead(port, val) => self.on_port_read(port, val)?,
             DeviceEvent::PortWrite(port, val) => {
                 self.on_port_write(port, val)?
             }
-            _ => (),
+            _ => {
+                panic!("HERE !");
+            },
         }
         Ok(())
     }
